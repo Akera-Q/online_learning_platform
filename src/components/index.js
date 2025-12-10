@@ -1,0 +1,5 @@
+export { default as Navbar } from "./Navbar/Navbar"
+export { default as Footer } from "./Footer/Footer"
+export { default as CourseCard } from "./Course/CourseCard"
+export { default as ProtectedRoute } from "./Auth/ProtectedRoute"
+export { default as SearchBar } from "./Search/SearchBar"
