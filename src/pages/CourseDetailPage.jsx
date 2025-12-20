@@ -7,7 +7,7 @@ import axios from "axios"
 
 const CourseDetailPage = () => {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, checkAuth } = useAuth()
   const navigate = useNavigate()
   
   const [course, setCourse] = useState(null)
@@ -19,6 +19,16 @@ const CourseDetailPage = () => {
   useEffect(() => {
     fetchCourseDetails()
   }, [id, user])
+
+  // Keep bookmark/enroll state in sync with latest user/course data
+  useEffect(() => {
+    if (course && user) {
+      const enrolled = (course.enrolledStudents || []).some(student => student._id === user.id || student === user.id)
+      setIsEnrolled(enrolled)
+      const bookmarked = (user.bookmarks || []).some(b => (b._id || b) === id)
+      setIsBookmarked(bookmarked)
+    }
+  }, [user, course, id])
 
   const fetchCourseDetails = async () => {
     try {
@@ -35,6 +45,14 @@ const CourseDetailPage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const resolveUploadUrl = (url) => {
+    if (!url) return null
+    if (url.startsWith("http")) return url
+    const base = import.meta.env.VITE_API_URL || "http://localhost:5000"
+    // Ensure no double slashes
+    return `${base.replace(/\/$/, "")}${url.startsWith("/") ? "" : "/"}${url}`
   }
 
   const checkEnrollment = (courseData) => {
@@ -71,10 +89,11 @@ const CourseDetailPage = () => {
     }
     
     try {
-      await axios.post(`/api/courses/${id}/enroll`)
-      setIsEnrolled(true)
+      const response = await axios.post(`/api/courses/${id}/enroll`)
+      // Refresh auth state so dashboard/bookmarks update globally
+      await checkAuth()
       setError("")
-      // Show success message
+      if (response.data?.data?.course) setCourse(response.data.data.course)
     } catch (error) {
       setError(error.response?.data?.message || "Failed to enroll in course")
     }
@@ -89,11 +108,11 @@ const CourseDetailPage = () => {
     try {
       if (isBookmarked) {
         await axios.delete(`/api/bookmarks/${id}`)
-        setIsBookmarked(false)
       } else {
         await axios.post(`/api/bookmarks/${id}`)
-        setIsBookmarked(true)
       }
+      // Refresh auth state to keep UI consistent
+      await checkAuth()
       setError("")
     } catch (error) {
       setError(error.response?.data?.message || "Failed to update bookmark")
@@ -201,6 +220,13 @@ const CourseDetailPage = () => {
                         <div>
                           <h3 className="font-medium">{item.title}</h3>
                           <span className="text-sm text-gray-500 capitalize">{item.type}</span>
+                          {item.type === "document" && item.url && (
+                            <div className="mt-2">
+                              <a href={resolveUploadUrl(item.url)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                Open document
+                              </a>
+                            </div>
+                          )}
                         </div>
                         <span className="text-gray-600">{item.duration || 0} min</span>
                       </div>

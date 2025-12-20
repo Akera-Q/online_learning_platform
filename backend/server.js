@@ -38,6 +38,9 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser()) // Parse cookies
 
+// Serve uploaded files from /uploads
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')))
+
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/potato-learn-platform", {
   useNewUrlParser: true,
@@ -75,6 +78,8 @@ app.use("/api/quizzes", require("./routes/quizzes"))
 app.use("/api/bookmarks", require("./routes/bookmarks"))
 app.use("/api/ratings", require("./routes/ratings"))
 app.use("/api/certificates", require("./routes/certificates"))
+// Debug routes (admin only)
+app.use("/api/debug", require("./routes/debug"))
 
 // Serve static assets in production
 if (process.env.NODE_ENV === "production") {

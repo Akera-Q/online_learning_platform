@@ -56,10 +56,16 @@ router.post("/:courseId", protect, async (req, res) => {
     
     user.bookmarks.push(req.params.courseId)
     await user.save()
-    
+
+    // Return updated bookmarks (populated)
+    const updatedUser = await User.findById(req.user.id).populate({
+      path: "bookmarks",
+      populate: { path: "instructor", select: "name email" }
+    }).select("bookmarks")
+
     res.status(200).json({
       success: true,
-      message: "Course bookmarked successfully"
+      data: updatedUser.bookmarks
     })
   } catch (error) {
     res.status(500).json({
@@ -82,11 +88,16 @@ router.delete("/:courseId", protect, async (req, res) => {
     )
     
     await user.save()
-    
-    res.status(200).json({
-      success: true,
-      message: "Course removed from bookmarks"
-    })
+      // Return updated bookmarks (populated)
+      const updatedUser = await User.findById(req.user.id).populate({
+        path: "bookmarks",
+        populate: { path: "instructor", select: "name email" }
+      }).select("bookmarks")
+
+      res.status(200).json({
+        success: true,
+        data: updatedUser.bookmarks
+      })
   } catch (error) {
     res.status(500).json({
       success: false,

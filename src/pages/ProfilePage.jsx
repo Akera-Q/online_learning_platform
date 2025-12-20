@@ -4,7 +4,7 @@ import Footer from "../components/Footer/Footer"
 import { useAuth } from "../context/AuthContext"
 
 const ProfilePage = () => {
-  const { user, loading } = useAuth()
+  const { user, loading, checkAuth } = useAuth()
   const [formData, setFormData] = useState({
     name: "",
     email: ""
@@ -29,8 +29,27 @@ const ProfilePage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    // TODO: Implement profile update API call
-    console.log("Updating profile:", formData)
+    // Only allow updating name (email updates disallowed)
+    if (!formData.name || formData.name.trim().length === 0) return
+
+    const updateProfile = async () => {
+      try {
+        await fetch(`/api/users/${user._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ name: formData.name.trim() })
+        })
+        // Refresh auth data
+        await checkAuth()
+        alert("Profile updated")
+      } catch (err) {
+        alert("Failed to update profile")
+        console.error(err)
+      }
+    }
+
+    updateProfile()
   }
 
   if (loading) {
@@ -89,10 +108,12 @@ const ProfilePage = () => {
               <input 
                 type="email" 
                 name="email"
-                className="w-full border rounded p-2" 
+                className="w-full border rounded p-2 bg-gray-50" 
                 value={formData.email}
                 onChange={handleChange}
+                disabled
               />
+              <p className="text-sm text-gray-500 mt-1">Email cannot be changed from your profile.</p>
             </div>
             <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Update Profile</button>
           </form>

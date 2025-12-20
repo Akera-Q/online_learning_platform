@@ -5,7 +5,20 @@ const User = require("../models/User")
 // @access  Private/Admin
 exports.getUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password")
+    const query = {}
+
+    if (req.query.role) {
+      query.role = req.query.role
+    }
+
+    if (req.query.search) {
+      query.$or = [
+        { name: { $regex: req.query.search, $options: "i" } },
+        { email: { $regex: req.query.search, $options: "i" } }
+      ]
+    }
+
+    const users = await User.find(query).select("-password")
     res.status(200).json({
       success: true,
       count: users.length,
@@ -52,6 +65,21 @@ exports.getUser = async (req, res) => {
 // @access  Private
 exports.updateUser = async (req, res) => {
   try {
+    // Only allow users to update their own profile unless admin
+    if (req.user.role !== "admin" && req.user.id !== req.params.id) {
+      return res.status(403).json({ success: false, message: "Not authorized to update this user" })
+    }
+    // Disallow updating email through this endpoint
+    if (req.body.email) delete req.body.email
+
+    // If updating name, ensure it's not already taken by another user
+    if (req.body.name) {
+      const existing = await User.findOne({ name: req.body.name.trim() })
+      if (existing && existing._id.toString() !== req.params.id) {
+        return res.status(400).json({ success: false, message: "Name already in use" })
+      }
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       req.body,

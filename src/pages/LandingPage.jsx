@@ -2,8 +2,11 @@ import React from "react"
 import { Link } from "react-router-dom"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
+import { useAuth } from "../context/AuthContext"
 
 const LandingPage = () => {
+  const { user } = useAuth()
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -17,8 +20,11 @@ const LandingPage = () => {
               A comprehensive online learning platform designed to democratize access to education.
             </p>
             <div className="flex justify-center space-x-4">
-              <Link to="/register" className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold text-lg">
-                Get Started
+              <Link
+                to={user ? "/profile" : "/register"}
+                className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold text-lg"
+              >
+                {user ? 'Open Profile' : 'Get Started'}
               </Link>
               <Link to="/courses" className="bg-transparent border-2 border-white hover:bg-white hover:text-blue-600 px-8 py-3 rounded-lg font-semibold text-lg">
                 Browse Courses

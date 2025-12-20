@@ -38,6 +38,8 @@ exports.getQuiz = async (req, res) => {
         message: "Quiz not found"
       })
     }
+
+    console.log(`DEBUG: GET /api/quizzes/${req.params.id} - questions: ${quiz.questions?.length || 0}`)
     
     res.status(200).json({
       success: true,
@@ -57,6 +59,7 @@ exports.getQuiz = async (req, res) => {
 // @access  Private/Instructor
 exports.createQuiz = async (req, res) => {
   try {
+    console.log(`DEBUG: POST /api/quizzes - received quiz payload. title: ${req.body.title}, questions: ${req.body.questions?.length || 0}`)
     // Check if instructor owns the course
     const course = await Course.findById(req.body.course)
     
@@ -74,12 +77,37 @@ exports.createQuiz = async (req, res) => {
       })
     }
     
-    const quiz = await Quiz.create(req.body)
-    
-    res.status(201).json({
-      success: true,
-      data: quiz
-    })
+    // Validate questions array
+    const questions = req.body.questions
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ success: false, message: "Quiz must include a non-empty questions array" })
+    }
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+      if (!q || typeof q.questionText !== "string" || q.questionText.trim() === "") {
+        return res.status(400).json({ success: false, message: `Question ${i + 1} is missing questionText` })
+      }
+      if (!Array.isArray(q.options) || q.options.length !== 4 || q.options.some(o => typeof o !== "string" || o.trim() === "")) {
+        return res.status(400).json({ success: false, message: `Question ${i + 1} must have 4 non-empty options` })
+      }
+      if (typeof q.correctAnswer !== "number" || q.correctAnswer < 0 || q.correctAnswer > 3) {
+        return res.status(400).json({ success: false, message: `Question ${i + 1} has invalid correctAnswer` })
+      }
+      q.points = Number(q.points) || 1
+    }
+
+    // If title missing or looks like an ObjectId equal to course id, generate a friendly title
+    let title = req.body.title && String(req.body.title).trim()
+    if (!title || /^[0-9a-fA-F]{24}$/.test(title) && title === String(course._id)) {
+      title = `Quiz: ${course.title}`
+    }
+
+    const quiz = await Quiz.create({ title, course: req.body.course, questions: questions, timeLimit: req.body.timeLimit, passingScore: req.body.passingScore, maxAttempts: req.body.maxAttempts, isFinalExam: req.body.isFinalExam })
+    const populated = await Quiz.findById(quiz._id).populate("course", "title instructor")
+    console.log(`DEBUG: POST /api/quizzes - created quiz ${quiz._id} with ${quiz.questions?.length || 0} questions`)
+
+    res.status(201).json({ success: true, data: populated })
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -121,6 +149,7 @@ exports.submitQuiz = async (req, res) => {
     // Calculate score
     let score = 0
     let totalPoints = 0
+    console.log(`DEBUG: POST /api/quizzes/${req.params.id}/submit - answers: ${JSON.stringify(req.body.answers)}`)
     
     quiz.questions.forEach((question, index) => {
       totalPoints += question.points
@@ -131,10 +160,15 @@ exports.submitQuiz = async (req, res) => {
       }
     })
     
-    const percentage = (score / totalPoints) * 100
+    const percentage = totalPoints === 0 ? 0 : (score / totalPoints) * 100
     const passed = percentage >= quiz.passingScore
     
     // Save quiz attempt (you might want to create a QuizAttempt model)
+    // If student passed, add course to their completed courses
+    if (passed) {
+      const User = require("../models/User")
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { completedCourses: quiz.course } })
+    }
     
     res.status(200).json({
       success: true,

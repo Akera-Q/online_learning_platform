@@ -6,7 +6,24 @@ const User = require("../models/User")
 // @access  Public
 exports.getCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ isPublished: true })
+    const query = {}
+
+    // Optional filter by instructor id
+    if (req.query.instructor) {
+      query.instructor = req.query.instructor
+    }
+
+    // Optional search by title
+    if (req.query.search) {
+      query.title = { $regex: req.query.search, $options: "i" }
+    }
+
+    // includeUnpublished=true will skip the isPublished filter
+    if (req.query.includeUnpublished !== "true") {
+      query.isPublished = true
+    }
+
+    const courses = await Course.find(query)
       .populate("instructor", "name email")
       .populate("enrolledStudents", "name")
     
@@ -60,7 +77,28 @@ exports.createCourse = async (req, res) => {
   try {
     // Add admin as creator
     req.body.createdBy = req.user.id
-    
+
+    // If an admin provided an instructor identifier, validate it
+    if (req.user.role === "admin" && (req.body.instructor || req.body.instructorEmail)) {
+      let instructorUser
+      if (req.body.instructor) {
+        instructorUser = await User.findById(req.body.instructor)
+      } else if (req.body.instructorEmail) {
+        instructorUser = await User.findOne({ email: req.body.instructorEmail.toLowerCase() })
+      }
+
+      if (!instructorUser || instructorUser.role !== "instructor") {
+        return res.status(400).json({ success: false, message: "Instructor not found or is not an instructor" })
+      }
+
+      req.body.instructor = instructorUser._id
+    }
+
+    // If creator is an instructor and no instructor specified, set to current user
+    if (!req.body.instructor && req.user.role === "instructor") {
+      req.body.instructor = req.user.id
+    }
+
     const course = await Course.create(req.body)
     
     res.status(201).json({
@@ -181,9 +219,16 @@ exports.enrollCourse = async (req, res) => {
       { $addToSet: { enrolledCourses: course._id } }
     )
     
+    // Return updated course and user's enrolled courses
+    const updatedCourse = await Course.findById(req.params.id).populate("enrolledStudents", "name")
+    const updatedUser = await User.findById(req.user.id).populate({ path: "enrolledCourses", select: "title" }).select("enrolledCourses")
+
     res.status(200).json({
       success: true,
-      message: "Successfully enrolled in course"
+      data: {
+        course: updatedCourse,
+        enrolledCourses: updatedUser.enrolledCourses
+      }
     })
   } catch (error) {
     res.status(500).json({

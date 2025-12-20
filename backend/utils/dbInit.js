@@ -1,6 +1,7 @@
 const mongoose = require("mongoose")
 const User = require("../models/User")
 const Course = require("../models/Course")
+const Quiz = require("../models/Quiz")
 const bcrypt = require("bcryptjs")
 
 const initializeDatabase = async () => {
@@ -95,9 +96,73 @@ const initializeDatabase = async () => {
       const createdCourses = await Course.find({ instructor: admin._id })
       admin.enrolledCourses = createdCourses.map(course => course._id)
       await admin.save()
+      // Create a sample quiz for the first created course if no quizzes exist
+        const quizCount = await Quiz.countDocuments()
+        if (quizCount === 0 && createdCourses.length > 0) {
+          console.log("🧪 Creating sample quiz for the first course...")
+          const sampleQuiz = {
+            title: `Quiz: ${createdCourses[0].title}`,
+            course: createdCourses[0]._id,
+            questions: [
+              {
+                questionText: "What does HTML stand for?",
+                options: ["HyperText Markup Language", "HighText Machine Language", "Hyperlinks and Text Markup", "Home Tool Markup Language"],
+                correctAnswer: 0,
+                points: 1
+              },
+              {
+                questionText: "Which company developed React?",
+                options: ["Google", "Facebook", "Microsoft", "Mozilla"],
+                correctAnswer: 1,
+                points: 1
+              }
+            ],
+            timeLimit: 10,
+            passingScore: 50
+          }
+
+          try {
+            await Quiz.create(sampleQuiz)
+            console.log("✅ Sample quiz created")
+          } catch (err) {
+            console.error("❌ Failed to create sample quiz:", err.message)
+          }
+        }
     }
     
     console.log("🎉 Database initialization complete!")
+
+    // If there are courses but no quizzes, create a sample quiz for an existing course
+    try {
+      const quizCount2 = await Quiz.countDocuments()
+      if (quizCount2 === 0) {
+        const anyCourse = await Course.findOne()
+        if (anyCourse) {
+          console.log("🧪 No quizzes found — creating a sample quiz for an existing course...")
+          try {
+            await Quiz.create({
+              title: `Quiz: ${anyCourse.title}`,
+              course: anyCourse._id,
+              questions: [
+                {
+                  questionText: "Which tag is used to include JavaScript in HTML?",
+                  options: ["<script>", "<js>", "<javascript>", "<code>"],
+                  correctAnswer: 0,
+                  points: 1
+                }
+              ],
+              timeLimit: 5,
+              passingScore: 50
+            })
+            console.log("✅ Sample quiz created for existing course")
+          } catch (err) {
+            console.error("❌ Failed to create fallback sample quiz:", err.message)
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error checking/creating fallback sample quiz:", err.message)
+    }
     
   } catch (error) {
     console.error("❌ Database initialization error:", error.message)
