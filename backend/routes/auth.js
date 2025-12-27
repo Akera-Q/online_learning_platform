@@ -32,7 +32,8 @@ const sendTokenResponse = (user, statusCode, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      profilePicture: user.profilePicture || ""
+      profilePicture: user.profilePicture || "",
+      createdAt: user.createdAt
     }
 
     res.status(statusCode)
@@ -126,6 +127,14 @@ router.post("/login", async (req, res) => {
       })
     }
 
+    // Prevent login for deactivated accounts
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Account is deactivated. Contact an administrator to reactivate."
+      })
+    }
+
     // Check if password matches
     const isMatch = await user.comparePassword(password)
     
@@ -187,6 +196,18 @@ router.get("/me", async (req, res) => {
       })
     }
 
+    // Deny access for deactivated accounts and clear cookie
+    if (user.isActive === false) {
+      res.cookie("token", "none", {
+        expires: new Date(Date.now() + 10 * 1000),
+        httpOnly: true
+      })
+      return res.status(403).json({
+        success: false,
+        message: "Account is deactivated"
+      })
+    }
+
     res.status(200).json({
       success: true,
       user: {
@@ -197,7 +218,8 @@ router.get("/me", async (req, res) => {
         profilePicture: user.profilePicture,
         enrolledCourses: user.enrolledCourses || [],
         completedCourses: user.completedCourses || [],
-        bookmarks: user.bookmarks || []
+        bookmarks: user.bookmarks || [],
+        createdAt: user.createdAt
       }
     })
   } catch (error) {

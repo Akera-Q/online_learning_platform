@@ -69,37 +69,48 @@ exports.updateUser = async (req, res) => {
     if (req.user.role !== "admin" && req.user.id !== req.params.id) {
       return res.status(403).json({ success: false, message: "Not authorized to update this user" })
     }
+
     // Disallow updating email through this endpoint
     if (req.body.email) delete req.body.email
 
-    // If updating name, ensure it's not already taken by another user
-    if (req.body.name) {
-      const existing = await User.findOne({ name: req.body.name.trim() })
-      if (existing && existing._id.toString() !== req.params.id) {
-        return res.status(400).json({ success: false, message: "Name already in use" })
-      }
+
+
+    const user = await User.findById(req.params.id)
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" })
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true
+    // Update fields allowed
+    if (req.body.name) user.name = req.body.name
+    if (req.body.role && req.user.role === 'admin') user.role = req.body.role
+
+    // Handle password change
+    if (req.body.password) {
+      // Require confirmPassword and ensure it matches the new password
+      if (!req.body.confirmPassword || req.body.password !== req.body.confirmPassword) {
+        return res.status(400).json({ success: false, message: 'New passwords do not match' })
       }
-    ).select("-password")
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      })
+
+      if (typeof req.body.password !== 'string' || req.body.password.length < 6) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
+      }
+
+      // Only set the password after validation
+      user.password = req.body.password
     }
-    
-    res.status(200).json({
-      success: true,
-      data: user
-    })
+
+    await user.save()
+
+    const safeUser = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      profilePicture: user.profilePicture || "",
+      isActive: user.isActive
+    }
+
+    res.status(200).json({ success: true, data: safeUser })
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -109,7 +120,7 @@ exports.updateUser = async (req, res) => {
   }
 }
 
-// @desc    Delete user
+// @desc    Delete user (soft deactivation)
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
 exports.deleteUser = async (req, res) => {
@@ -131,6 +142,48 @@ exports.deleteUser = async (req, res) => {
       success: true,
       message: "User deactivated successfully"
     })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    })
+  }
+}
+
+// @desc    Toggle user active status (reactivate or deactivate)
+// @route   PATCH /api/users/:id/active
+// @access  Private/Admin
+exports.toggleUserActive = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      })
+    }
+
+    // Expect body: { active: true/false }
+    const { active } = req.body
+    if (typeof active !== "boolean") {
+      return res.status(400).json({ success: false, message: "Invalid 'active' value" })
+    }
+
+    user.isActive = active
+    await user.save()
+
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      profilePicture: user.profilePicture || "",
+      isActive: user.isActive
+    }
+
+    res.status(200).json({ success: true, data: userResponse })
   } catch (error) {
     res.status(500).json({
       success: false,

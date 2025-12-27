@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import axios from "axios"
+import api from "../services/api"
 import { useAuth } from "../context/AuthContext"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
+import Spinner from "../components/Spinner/Spinner"
 
 const QuizPage = () => {
   const { id } = useParams()
@@ -18,12 +19,12 @@ const QuizPage = () => {
     try {
       let q = null
       try {
-        const res = await axios.get(`/api/quizzes/${id}`)
+        const res = await api.get(`/quizzes/${id}`)
         q = res.data.data
       } catch (err) {
         // If direct quiz fetch failed (maybe id is actually a course id), try fetching quizzes for course
         if (err.response?.status === 404) {
-          const courseRes = await axios.get(`/api/quizzes/course/${id}`)
+          const courseRes = await api.get(`/quizzes/course/${id}`)
           const list = courseRes.data.data || []
           if (list.length > 0) {
             q = list[0]
@@ -50,6 +51,8 @@ const QuizPage = () => {
 
   const [submitLoading, setSubmitLoading] = useState(false)
   const [error, setError] = useState("")
+  const [passedResult, setPassedResult] = useState(null)
+  const [passedCertificate, setPassedCertificate] = useState(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -72,12 +75,17 @@ const QuizPage = () => {
       setSubmitLoading(true)
       // Use the actual quiz id in case this page was loaded via course id fallback
       const quizIdToSubmit = quiz._id || id
-      const res = await axios.post(`/api/quizzes/${quizIdToSubmit}/submit`, payload)
+      const res = await api.post(`/quizzes/${quizIdToSubmit}/submit`, payload)
       const data = res.data.data
       alert(`Quiz Results: ${data.score}/${data.totalPoints} points (${data.percentage}%) - ${data.passed ? 'PASSED' : 'FAILED'}`)
       if (data.passed) {
         // Refresh auth so completed courses update
         await checkAuth()
+        setPassedResult(data)
+        if (data.certificate) setPassedCertificate(data.certificate)
+      } else {
+        setPassedResult(null)
+        setPassedCertificate(null)
       }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to submit quiz")
@@ -113,7 +121,7 @@ const QuizPage = () => {
         <h1 className="text-3xl font-bold mb-6">{displayTitle()}</h1>
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 max-w-3xl">
           {loading ? (
-            <div className="p-6 text-center">Loading quiz...</div>
+            <div className="p-6 text-center"><Spinner size={12} /></div>
           ) : error ? (
             <div className="p-6 text-center">
               <div className="mb-4 text-red-600">{error}</div>
@@ -151,6 +159,21 @@ const QuizPage = () => {
           <button type="submit" disabled={submitLoading} className={`bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-semibold ${submitLoading ? 'opacity-60 cursor-not-allowed' : ''}`}>
             {submitLoading ? 'Submitting...' : 'Submit Quiz'}
           </button>
+
+          {passedResult && (
+            <div className="mt-6 bg-green-50 border border-green-100 p-4 rounded">
+              <h4 className="font-semibold mb-2">Congratulations — you passed!</h4>
+              <p className="text-sm text-gray-700 mb-3">A certificate has been generated for you — you can download it below.</p>
+
+              {passedCertificate ? (
+                <div className="mt-3">
+                  <a href={`/api/certificates/${passedCertificate._id}/download`} target="_blank" rel="noreferrer" className="bg-indigo-600 text-white px-3 py-2 rounded inline-block">Download certificate</a>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600">Certificate generation pending; please refresh in a moment.</div>
+              )}
+            </div>
+          )}
         </form>
       </main>
       <Footer />

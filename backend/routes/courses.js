@@ -1,13 +1,14 @@
 const express = require("express")
 const router = express.Router()
-const { protect, authorize } = require("../middleware/authMiddleware")
+const { protect, authorize, optionalAuth } = require("../middleware/authMiddleware")
 const {
   getCourses,
   getCourse,
   createCourse,
   updateCourse,
   deleteCourse,
-  enrollCourse
+  enrollCourse,
+  rateCourse
 } = require("../controllers/courseController")
 const path = require("path")
 const fs = require("fs")
@@ -33,13 +34,16 @@ const upload = multer({ storage })
 
 // Public routes
 router.get("/", getCourses)
-router.get("/:id", getCourse)
+router.get("/:id", optionalAuth, getCourse)
 
 // Protected routes
 router.use(protect)
 
 // Student routes
 router.post("/:id/enroll", authorize("student"), enrollCourse)
+
+// Rating
+router.post("/:id/rate", rateCourse)
 
 // Instructor/Admin routes
 router.post("/", authorize("admin"), createCourse)

@@ -7,8 +7,8 @@ const Navbar = () => {
   const navigate = useNavigate()
 
   const handleLogout = () => {
+    // Let logout manage navigation and state clearing
     logout()
-    navigate("/login")
   }
 
   return (

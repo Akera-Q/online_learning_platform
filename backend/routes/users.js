@@ -16,5 +16,7 @@ router.get("/", authorize("admin"), getUsers)
 router.get("/:id", authorize("admin"), getUser)
 router.put("/:id", updateUser) // User can update own profile
 router.delete("/:id", authorize("admin"), deleteUser)
+// Reactivate / toggle active status (admin only)
+router.patch("/:id/active", authorize("admin"), require('../controllers/authController').toggleUserActive)
 
 module.exports = router

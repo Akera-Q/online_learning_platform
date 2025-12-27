@@ -1,0 +1,7 @@
+Certificate of Completion
+
+Student: test3
+Course: Introduction to Web Development
+Quiz: Quiz: Introduction to Web Development
+Date: 2025-12-27
+Certificate ID: CERT-1766872665636-78m2th3f

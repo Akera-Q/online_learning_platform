@@ -53,6 +53,11 @@ const courseSchema = new mongoose.Schema({
       default: 0
     }
   },
+  // Individual user ratings (stored so users can update their rating)
+  ratings: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    rating: { type: Number, min: 1, max: 5 }
+  }],
   enrolledStudents: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"

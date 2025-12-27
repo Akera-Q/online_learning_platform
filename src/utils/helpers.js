@@ -25,6 +25,17 @@ export const getInitials = (name) => {
     .substring(0, 2)
 }
 
+// Safely compare IDs which might be strings or Objects
+export const idEquals = (a, b) => {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  try {
+    return String(a) === String(b)
+  } catch (e) {
+    return false
+  }
+}
+
 //Another version without options for formatDate, use if needed.
 
 // export const formatDate = (dateString) => {

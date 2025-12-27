@@ -2,19 +2,23 @@ import React, { useState, useEffect } from "react"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
 import { useAuth } from "../context/AuthContext"
+import api from "../services/api"
+import Spinner from "../components/Spinner/Spinner"
+import { formatDate } from "../utils/helpers"
+import CertificatesList from "../components/Certificates/CertificatesList"
 
 const ProfilePage = () => {
   const { user, loading, checkAuth } = useAuth()
   const [formData, setFormData] = useState({
-    name: "",
-    email: ""
+    name: ""
   })
+
+  const [passwordForm, setPasswordForm] = useState({ password: "", confirmPassword: "" })
 
   useEffect(() => {
     if (user) {
       setFormData({
-        name: user.name || "",
-        email: user.email || ""
+        name: user.name || ""
       })
     }
   }, [user])
@@ -29,22 +33,19 @@ const ProfilePage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    // Only allow updating name (email updates disallowed)
-    if (!formData.name || formData.name.trim().length === 0) return
+    // Validate
+    if (!formData.name || formData.name.trim().length === 0) return alert('Full name is required')
 
     const updateProfile = async () => {
       try {
-        await fetch(`/api/users/${user._id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ name: formData.name.trim() })
-        })
+        const targetId = user._id || user.id
+        if (!targetId) throw new Error('User id not available')
+        const res = await api.put(`/users/${targetId}`, { name: formData.name.trim() })
         // Refresh auth data
         await checkAuth()
         alert("Profile updated")
       } catch (err) {
-        alert("Failed to update profile")
+        alert(err.response?.data?.message || err.message || "Failed to update profile")
         console.error(err)
       }
     }
@@ -52,12 +53,31 @@ const ProfilePage = () => {
     updateProfile()
   }
 
+  const handlePasswordChange = (e) => {
+    e.preventDefault()
+
+    if (passwordForm.password !== passwordForm.confirmPassword) return alert("New passwords do not match")
+    if (passwordForm.password.length < 6) return alert("New password must be at least 6 characters")
+
+    const changePassword = async () => {
+      try {
+        const res = await api.put(`/users/${user._id || user.id}`, { password: passwordForm.password, confirmPassword: passwordForm.confirmPassword })
+        setPasswordForm({ password: '', confirmPassword: '' })
+        alert('Password updated successfully')
+      } catch (err) {
+        alert(err.response?.data?.message || err.message || 'Failed to update password')
+      }
+    }
+
+    changePassword()
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
         <main className="flex-grow container mx-auto px-4 py-8">
-          <p>Loading...</p>
+          <div className="flex items-center justify-center"><Spinner size={14} /></div>
         </main>
         <Footer />
       </div>
@@ -81,45 +101,116 @@ const ProfilePage = () => {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Your Profile</h1>
-        <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl">
-          <div className="flex items-center mb-6">
-            <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center text-2xl">
-              👤
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center text-3xl">
+                👤
+              </div>
+              <div className="ml-6">
+                <h2 className="text-xl font-semibold">{formData.name || user.name}</h2>
+                <p className="text-sm text-gray-500 capitalize mt-1">Role: {user.role}</p>
+              </div>
             </div>
-            <div className="ml-6">
-              <h2 className="text-xl font-semibold">{user.name}</h2>
-              <p className="text-gray-600">{user.email}</p>
-              <p className="text-sm text-gray-500 capitalize">Role: {user.role}</p>
-            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-gray-700">Full name</label>
+                <input 
+                  type="text" 
+                  name="name"
+                  className="w-full border rounded p-2" 
+                  value={formData.name}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="pt-2">
+                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Update Profile</button>
+              </div>
+            </form>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-gray-700">Name</label>
-              <input 
-                type="text" 
-                name="name"
-                className="w-full border rounded p-2" 
-                value={formData.name}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label className="block text-gray-700">Email</label>
-              <input 
-                type="email" 
-                name="email"
-                className="w-full border rounded p-2 bg-gray-50" 
-                value={formData.email}
-                onChange={handleChange}
-                disabled
-              />
-              <p className="text-sm text-gray-500 mt-1">Email cannot be changed from your profile.</p>
-            </div>
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Update Profile</button>
-          </form>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Account</h3>
+            <div className="text-sm text-gray-700 mb-3"><strong>Email:</strong> {user.email}</div>
+            <div className="text-sm text-gray-700 mb-3"><strong>Member since:</strong> {formatDate(user.createdAt)}</div>
+
+            <h4 className="text-md font-semibold mt-4 mb-2">Change Password</h4>
+            <form onSubmit={handlePasswordChange} className="space-y-3">
+
+              <div>
+                <label className="block text-gray-700">New password</label>
+                <input type="password" value={passwordForm.password} onChange={e => setPasswordForm({...passwordForm, password: e.target.value})} className="w-full border rounded p-2" />
+              </div>
+              <div>
+                <label className="block text-gray-700">Confirm new password</label>
+                <input type="password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm({...passwordForm, confirmPassword: e.target.value})} className="w-full border rounded p-2" />
+              </div>
+              <div>
+                <button type="submit" className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Change password</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Certificates */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
+          <h3 className="text-lg font-semibold mb-4">Certificates</h3>
+          <CertificatesList user={user} />
         </div>
       </main>
       <Footer />
+    </div>
+  )
+}
+
+
+function CertificatesList({ user }) {
+  const [certs, setCerts] = React.useState([])
+  const [loading, setLoading] = React.useState(false)
+
+  const fetchCerts = async () => {
+    try {
+      setLoading(true)
+      const res = await api.get('/certificates')
+      setCerts(res.data.data || [])
+    } catch (err) {
+      console.error('Failed to load certificates', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  React.useEffect(() => { if (user) fetchCerts() }, [user])
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this certificate?')) return
+    try {
+      await api.delete(`/certificates/${id}`)
+      await fetchCerts()
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete certificate')
+    }
+  }
+
+  if (loading) return <div className="p-4"><Spinner size={10} /></div>
+
+  if (!certs.length) return <div className="text-gray-500">You have no uploaded certificates yet.</div>
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {certs.map(c => (
+        <div key={c._id} className="border rounded p-3 flex flex-col">
+          <a href={c.url} target="_blank" rel="noreferrer">
+            <img src={c.url} alt={`Certificate for ${c.course?.title || ''}`} className="w-full h-40 object-cover rounded" />
+          </a>
+          <div className="mt-2 flex items-center justify-between">
+            <div className="text-sm text-gray-700">{c.course?.title || 'Course'}</div>
+            <button onClick={() => handleDelete(c._id)} className="text-red-600 text-sm">Delete</button>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

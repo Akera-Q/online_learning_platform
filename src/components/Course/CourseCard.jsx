@@ -10,10 +10,15 @@ const CourseCard = ({ course }) => {
           {course.shortDescription || "Course description will appear here."}
         </p>
         <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-500">By: Instructor</span>
+          <span className="text-sm text-gray-500">By: {course.instructor?.name || 'Instructor'}</span>
           <div className="flex items-center">
             <span className="text-yellow-500 mr-1">★</span>
-            <span>{course.rating?.average || 0}</span>
+            <span className="font-medium">
+              { (course.rating && course.rating.count > 0) ? course.rating.average : 'No ratings' }
+            </span>
+            { course.rating && course.rating.count > 0 && (
+              <span className="text-sm text-gray-500 ml-2">({course.rating.count})</span>
+            ) }
           </div>
         </div>
         <Link to={`/courses/${course._id || "1"}`} className="mt-4 block w-full bg-blue-500 hover:bg-blue-600 text-white text-center py-2 rounded">

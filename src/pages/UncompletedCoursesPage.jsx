@@ -3,7 +3,8 @@ import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
 import { useAuth } from "../context/AuthContext"
 import { Link } from "react-router-dom"
-import axios from "axios"
+import { idEquals } from "../utils/helpers"
+import Spinner from "../components/Spinner/Spinner"
 
 const UncompletedCoursesPage = () => {
   const { user, loading, checkAuth } = useAuth()
@@ -19,7 +20,7 @@ const UncompletedCoursesPage = () => {
         const enrolled = user.enrolledCourses || []
         const completed = user.completedCourses || []
         // Filter enrolled to those not completed
-        const uncompleted = enrolled.filter(ec => !completed.some(cc => cc._id ? cc._id.toString() === ec._id.toString() : cc.toString() === ec.toString()))
+        const uncompleted = enrolled.filter(ec => !completed.some(cc => idEquals(cc._id || cc, ec._id || ec)))
         setCourses(uncompleted)
       } catch (err) {
         setCourses([])
@@ -40,7 +41,7 @@ const UncompletedCoursesPage = () => {
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Courses in Progress</h1>
         {loading || loadingCourses ? (
-          <div className="text-center p-6">Loading...</div>
+          <div className="text-center p-6"><Spinner size={12} /></div>
         ) : courses.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-8 text-center">
             <div className="text-4xl mb-4">📋</div>

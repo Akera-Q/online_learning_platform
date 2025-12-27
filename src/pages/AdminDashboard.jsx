@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react"
-import axios from "axios"
+import api from "../services/api"
 import { useAuth } from "../context/AuthContext"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
+import Spinner from "../components/Spinner/Spinner"
+const AdminUsers = React.lazy(() => import("../components/Admin/AdminUsers"))
 
 const AdminDashboard = () => {
   return (
@@ -11,19 +13,21 @@ const AdminDashboard = () => {
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-6 col-span-1 lg:col-span-2">
             <h3 className="text-lg font-semibold mb-2">Users</h3>
             <p className="text-gray-600">Manage all users</p>
+            <div className="mt-4">
+              <React.Suspense fallback={<div className="flex items-center justify-center"><Spinner size={12} /></div>}>
+                <AdminUsers />
+              </React.Suspense>
+            </div>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold mb-2">Courses</h3>
             <p className="text-gray-600">Manage courses</p>
             <AdminCourseUploader />
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold mb-2">Settings</h3>
-            <p className="text-gray-600">Platform settings</p>
-          </div>
+
         </div>
       </main>
       <Footer />
@@ -48,7 +52,7 @@ function AdminCourseUploader() {
   useEffect(() => {
     const fetchInstructors = async () => {
       try {
-        const res = await axios.get(`/api/users?role=instructor&search=${encodeURIComponent(search)}`)
+        const res = await api.get(`/users?role=instructor&search=${encodeURIComponent(search)}`)
         setInstructors(res.data.data || [])
       } catch (err) {
         setInstructors([])
@@ -61,7 +65,7 @@ function AdminCourseUploader() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await axios.get(`/api/courses`)
+        const res = await api.get(`/courses`)
         const cats = Array.from(new Set((res.data.data || []).map(c => c.category).filter(Boolean)))
         setCategories(cats)
       } catch (err) {
@@ -77,7 +81,7 @@ function AdminCourseUploader() {
       setLoading(true)
       const formData = new FormData()
       files.forEach(f => formData.append("files", f))
-      const uploadRes = await axios.post("/api/courses/upload", formData, { headers: { "Content-Type": "multipart/form-data" } })
+      const uploadRes = await api.post("/courses/upload", formData, { headers: { "Content-Type": "multipart/form-data" } })
       const uploaded = uploadRes.data.data || []
 
       const categoryToUse = newCategory && newCategory.trim().length > 0 ? newCategory.trim() : selectedCategory
@@ -95,7 +99,7 @@ function AdminCourseUploader() {
         content
       }
 
-      await axios.post("/api/courses", coursePayload)
+      await api.post("/courses", coursePayload)
       alert("Course created")
       setFiles([])
       setTitle("")

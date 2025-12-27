@@ -24,26 +24,36 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized - redirect to login
-      window.location.href = "/login"
+    const status = error.response?.status
+    const message = error.response?.data?.message || ""
+
+    if (status === 401) {
+      // Do not treat the public /auth/me probe as a fatal app-level unauthorized event.
+      // When the app first loads, unauthenticated guests will get 401 from /auth/me which is expected.
+      const reqUrl = error.config?.url || ""
+      if (reqUrl.includes("/auth/me")) {
+        return Promise.reject(error)
+      }
+
+      // Only treat token-related 401s as a global unauthorized event. For example, password validation
+      // failures ("Current password is incorrect") should not force a logout.
+      const lowerMsg = message.toLowerCase()
+      const looksLikeTokenIssue = lowerMsg.includes("token") || lowerMsg.includes("expired") || lowerMsg.includes("not authorized") || lowerMsg.includes("invalid token")
+      if (looksLikeTokenIssue) {
+        try { window.dispatchEvent(new CustomEvent("app:unauthorized")) } catch (e) {}
+      }
+
+      return Promise.reject(error)
     }
+
+    // If account is deactivated, show message and force redirect via event
+    if (status === 403 && message.toLowerCase().includes("deactivated")) {
+      try { window.dispatchEvent(new CustomEvent("app:deactivated", { detail: { message } })) } catch (e) {}
+      return Promise.reject(error)
+    }
+
     return Promise.reject(error)
   }
 )
 
-//Another version without interceptors, use if needed.
-
-// export default api
-
-// import axios from "axios"
-
-// const api = axios.create({
-//   baseURL: "/api",
-//   withCredentials: true,
-//   headers: {
-//     "Content-Type": "application/json",
-//   },
-// })
-
-// export default api
+export default api

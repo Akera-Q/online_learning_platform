@@ -1,6 +1,6 @@
 import React from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
-import { useAuth } from "../context/AuthContext"
+import ProtectedRoute from "../components/Auth/ProtectedRoute"
 
 // Import pages
 const LandingPage = React.lazy(() => import("../pages/LandingPage"))
@@ -16,19 +16,7 @@ const InstructorPage = React.lazy(() => import("../pages/InstructorPage"))
 const ProfilePage = React.lazy(() => import("../pages/ProfilePage"))
 const QuizPage = React.lazy(() => import("../pages/QuizPage"))
 
-const ProtectedRoute = ({ children, roles = [] }) => {
-  const { user, loading } = useAuth()
-  
-  if (loading) return <div className="flex justify-center items-center h-screen">Loading...</div>
-  
-  if (!user) return <Navigate to="/login" />
-  
-  if (roles.length > 0 && !roles.includes(user.role)) {
-    return <Navigate to="/" />
-  }
-  
-  return children
-}
+
 
 const AppRoutes = () => {
   return (

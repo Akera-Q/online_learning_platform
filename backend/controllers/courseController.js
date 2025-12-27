@@ -26,11 +26,27 @@ exports.getCourses = async (req, res) => {
     const courses = await Course.find(query)
       .populate("instructor", "name email")
       .populate("enrolledStudents", "name")
+
+    // Normalize rating stats from the embedded ratings array to avoid inconsistencies
+    const normalized = courses.map(course => {
+      const obj = course.toObject ? course.toObject() : course
+      const ratings = obj.ratings || []
+      if (ratings.length > 0) {
+        const sum = ratings.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
+        obj.rating = obj.rating || {}
+        obj.rating.count = ratings.length
+        // Use integer averages to avoid half-stars in UI
+        obj.rating.average = Math.round(sum / obj.rating.count)
+      } else {
+        obj.rating = obj.rating || { count: 0, average: 0 }
+      }
+      return obj
+    })
     
     res.status(200).json({
       success: true,
-      count: courses.length,
-      data: courses
+      count: normalized.length,
+      data: normalized
     })
   } catch (error) {
     res.status(500).json({
@@ -43,23 +59,42 @@ exports.getCourses = async (req, res) => {
 
 // @desc    Get single course
 // @route   GET /api/courses/:id
-// @access  Public
+// @access  Public (optional auth)
 exports.getCourse = async (req, res) => {
   try {
     const course = await Course.findById(req.params.id)
       .populate("instructor", "name email profilePicture")
       .populate("enrolledStudents", "name email")
-    
+
     if (!course) {
       return res.status(404).json({
         success: false,
         message: "Course not found"
       })
     }
-    
+
+    // Provide user's rating if available
+    let userRating = null
+    if (req.user) {
+      const userRatingObj = (course.ratings || []).find(r => r.user.toString() === req.user._id.toString())
+      if (userRatingObj) userRating = Number(userRatingObj.rating)
+    }
+
+    // Recalculate rating stats from the ratings array (always) to keep consistency
+    if (course.ratings && course.ratings.length > 0) {
+      const sum = course.ratings.reduce((acc, r) => acc + (Number(r.rating) || 0), 0)
+      course.rating = course.rating || {}
+      course.rating.count = course.ratings.length
+      // Use integer averages to avoid half-star increments
+      course.rating.average = Math.round(sum / course.rating.count)
+    } else {
+      course.rating = course.rating || { count: 0, average: 0 }
+    }
+
     res.status(200).json({
       success: true,
-      data: course
+      data: course,
+      userRating
     })
   } catch (error) {
     res.status(500).json({
@@ -67,6 +102,66 @@ exports.getCourse = async (req, res) => {
       message: "Server error",
       error: error.message
     })
+  }
+}
+
+// @desc    Rate a course (create or update user's rating)
+// @route   POST /api/courses/:id/rate
+// @access  Private (logged-in users)
+exports.rateCourse = async (req, res) => {
+  try {
+    const mongoose = require('mongoose')
+    const { rating } = req.body
+    const numeric = Math.round(Number(rating))
+    if (Number.isNaN(numeric) || numeric < 1 || numeric > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be an integer between 1 and 5' })
+    }
+
+    // Validate course id format early
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid course id' })
+    }
+
+    const course = await Course.findById(req.params.id)
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found' })
+    }
+
+    // If student, only allow rating if enrolled
+    if (req.user.role === 'student') {
+      if (!course.enrolledStudents || !course.enrolledStudents.some(s => s.toString() === req.user._id.toString())) {
+        return res.status(403).json({ success: false, message: 'You must be enrolled to rate this course' })
+      }
+    }
+
+    // Find existing rating by this user
+    let existing = (course.ratings || []).find(r => r.user.toString() === req.user._id.toString())
+
+    if (existing) {
+      existing.rating = numeric
+    } else {
+      course.ratings = course.ratings || []
+      course.ratings.push({ user: req.user._id, rating: numeric })
+    }
+
+    // Recalculate average and count (use integer averages)
+    const sum = course.ratings.reduce((acc, r) => acc + (r.rating || 0), 0)
+    course.rating.count = course.ratings.length
+    course.rating.average = course.rating.count === 0 ? 0 : Math.round(sum / course.rating.count)
+
+    await course.save()
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        average: course.rating.average,
+        count: course.rating.count,
+        userRating: numeric
+      }
+    })
+  } catch (err) {
+    console.error('Rate course error', err)
+    return res.status(500).json({ success: false, message: 'Server error', error: err.message })
   }
 }
 

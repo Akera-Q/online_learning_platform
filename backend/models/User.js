@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
   enrolledCourses: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Course"

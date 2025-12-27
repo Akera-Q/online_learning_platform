@@ -40,6 +40,18 @@ exports.protect = async (req, res, next) => {
       })
     }
     
+    // Deny access for deactivated accounts and clear cookie
+    if (req.user.isActive === false) {
+      res.cookie("token", "none", {
+        expires: new Date(Date.now() + 10 * 1000),
+        httpOnly: true
+      })
+      return res.status(403).json({
+        success: false,
+        message: "Account is deactivated"
+      })
+    }
+    
     next()
   } catch (err) {
     return res.status(401).json({
@@ -60,4 +72,34 @@ exports.authorize = (...roles) => {
     }
     next()
   }
+}
+
+// Optional auth middleware: populate req.user if a valid token is present, otherwise continue silently
+exports.optionalAuth = async (req, res, next) => {
+  let token
+  if (req.cookies && req.cookies.token) {
+    token = req.cookies.token
+  }
+  if (!token && req.headers.authorization) {
+    const authHeader = req.headers.authorization
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7)
+    }
+  }
+
+  if (!token) {
+    return next()
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const user = await User.findById(decoded.id)
+    if (user && user.isActive !== false) {
+      req.user = user
+    }
+  } catch (err) {
+    // ignore token errors for optional auth
+  }
+
+  return next()
 }

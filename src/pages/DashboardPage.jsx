@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
 import CourseCard from "../components/Course/CourseCard"
-import axios from "axios"
+import Spinner from "../components/Spinner/Spinner"
 
 const DashboardPage = () => {
   const { user } = useAuth()
@@ -78,7 +78,7 @@ const DashboardPage = () => {
           </div>
           
           {loading ? (
-            <div className="text-center py-8">Loading courses...</div>
+            <div className="text-center py-8"><Spinner size={12} /></div>
           ) : enrolledCourses.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {enrolledCourses.slice(0, 3).map(course => (

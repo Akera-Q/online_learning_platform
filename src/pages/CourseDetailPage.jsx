@@ -3,7 +3,9 @@ import { useParams, Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
-import axios from "axios"
+import api from "../services/api"
+import { idEquals } from "../utils/helpers"
+import Spinner from "../components/Spinner/Spinner"
 
 const CourseDetailPage = () => {
   const { id } = useParams()
@@ -15,6 +17,8 @@ const CourseDetailPage = () => {
   const [error, setError] = useState("")
   const [isEnrolled, setIsEnrolled] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [userRating, setUserRating] = useState(null)
+  const [ratingLoading, setRatingLoading] = useState(false)
 
   useEffect(() => {
     fetchCourseDetails()
@@ -23,18 +27,19 @@ const CourseDetailPage = () => {
   // Keep bookmark/enroll state in sync with latest user/course data
   useEffect(() => {
     if (course && user) {
-      const enrolled = (course.enrolledStudents || []).some(student => student._id === user.id || student === user.id)
+      const enrolled = (course.enrolledStudents || []).some(student => idEquals(student._id || student, user._id || user.id))
       setIsEnrolled(enrolled)
-      const bookmarked = (user.bookmarks || []).some(b => (b._id || b) === id)
+      const bookmarked = (user.bookmarks || []).some(b => idEquals(b._id || b, id))
       setIsBookmarked(bookmarked)
     }
   }, [user, course, id])
 
   const fetchCourseDetails = async () => {
     try {
-      const response = await axios.get(`/api/courses/${id}`)
+      const response = await api.get(`/courses/${id}`)
       setCourse(response.data.data)
-      
+      setUserRating(response.data.userRating ?? null)
+
       if (user && response.data.data) {
         checkEnrollment(response.data.data)
         checkBookmark(response.data.data)
@@ -58,9 +63,7 @@ const CourseDetailPage = () => {
   const checkEnrollment = (courseData) => {
     try {
       if (courseData.enrolledStudents && user) {
-        const enrolled = courseData.enrolledStudents.some(student => 
-          student._id === user.id || student === user.id
-        )
+        const enrolled = courseData.enrolledStudents.some(student => idEquals(student._id || student, user._id || user.id))
         setIsEnrolled(enrolled)
       }
     } catch (error) {
@@ -71,11 +74,9 @@ const CourseDetailPage = () => {
   const checkBookmark = async (courseData) => {
     try {
       if (user) {
-        const response = await axios.get("/api/bookmarks")
-        const bookmarkedCourseIds = response.data.data.map(bookmark => 
-          bookmark._id || bookmark
-        )
-        setIsBookmarked(bookmarkedCourseIds.includes(id))
+        const response = await api.get("/bookmarks")
+        const bookmarkedCourseIds = response.data.data.map(bookmark => bookmark._id || bookmark)
+        setIsBookmarked(bookmarkedCourseIds.some(bid => idEquals(bid, id)))
       }
     } catch (error) {
       console.error("Error checking bookmark:", error)
@@ -89,7 +90,7 @@ const CourseDetailPage = () => {
     }
     
     try {
-      const response = await axios.post(`/api/courses/${id}/enroll`)
+      const response = await api.post(`/courses/${id}/enroll`)
       // Refresh auth state so dashboard/bookmarks update globally
       await checkAuth()
       setError("")
@@ -107,9 +108,9 @@ const CourseDetailPage = () => {
     
     try {
       if (isBookmarked) {
-        await axios.delete(`/api/bookmarks/${id}`)
+        await api.delete(`/bookmarks/${id}`)
       } else {
-        await axios.post(`/api/bookmarks/${id}`)
+        await api.post(`/bookmarks/${id}`)
       }
       // Refresh auth state to keep UI consistent
       await checkAuth()
@@ -123,7 +124,7 @@ const CourseDetailPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+        <Spinner size={14} />
       </div>
     )
   }
@@ -159,8 +160,52 @@ const CourseDetailPage = () => {
                 <p className="text-blue-100 mb-4">{course.shortDescription}</p>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center">
-                    <span className="text-yellow-300 mr-1">★</span>
-                    <span>{course.rating?.average || "No ratings"}</span>
+                    <div className="flex items-center mr-2">
+                      <span className="text-yellow-300 mr-1">★</span>
+                      <span>{course.rating?.count > 0 ? course.rating.average : "No ratings"}</span>
+                      {course.rating?.count > 0 && (
+                        <span className="ml-2 text-sm text-gray-100">({course.rating.count})</span>
+                      )}
+                    </div>
+
+                    {/* Interactive rating stars */}
+                    <div className="flex items-center ml-4">
+                      {[1,2,3,4,5].map((n) => (
+                        <button
+                          key={n}
+                          disabled={ratingLoading}
+                          onClick={async () => {
+                            if (!user) { navigate('/login'); return }
+                            try {
+                              setRatingLoading(true)
+                              const res = await api.post(`/courses/${id}/rate`, { rating: n })
+                              // Update course rating info
+                              setCourse(prev => ({ ...prev, rating: { ...prev.rating, average: res.data.data.average, count: res.data.data.count } }))
+                              setUserRating(res.data.data.userRating)
+
+                              // Dispatch update for list
+                              try { window.dispatchEvent(new CustomEvent('course:ratingUpdated', { detail: { courseId: id, average: res.data.data.average, count: res.data.data.count } })) } catch(e) {}
+                            } catch (err) {
+                              const status = err.response?.status
+                              const msg = err.response?.data?.message
+                              if (status === 404) {
+                                alert('Cannot rate — course not found (it may have been removed). Please refresh the page.')
+                              } else if (status === 403) {
+                                alert(msg || 'You are not authorized to rate this course')
+                              } else {
+                                alert(msg || 'Failed to submit rating')
+                              }
+                              setError(msg || 'Failed to submit rating')
+                            } finally {
+                              setRatingLoading(false)
+                            }
+                          }}
+                          className={`text-2xl px-1 ${ (userRating || 0) >= n ? 'text-yellow-400' : 'text-gray-300' }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <span>•</span>
                   <span>{course.enrolledStudents?.length || 0} students</span>

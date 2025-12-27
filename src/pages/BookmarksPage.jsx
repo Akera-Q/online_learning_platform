@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import axios from "axios"
+import api from "../services/api"
 import { useAuth } from "../context/AuthContext"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
+import Spinner from "../components/Spinner/Spinner"
 
 const BookmarksPage = () => {
   const { user } = useAuth()
@@ -17,7 +18,7 @@ const BookmarksPage = () => {
   const fetchBookmarks = async () => {
     try {
       setLoading(true)
-      const res = await axios.get("/api/bookmarks")
+      const res = await api.get("/bookmarks")
       setBookmarks(res.data.data || [])
     } catch (err) {
       setBookmarks([])
@@ -32,7 +33,7 @@ const BookmarksPage = () => {
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Bookmarked Courses</h1>
         {loading ? (
-          <div className="text-center p-8">Loading...</div>
+          <div className="text-center p-8"><Spinner size={12} /></div>
         ) : bookmarks.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-8 text-center">
             <div className="text-4xl mb-4">🔖</div>

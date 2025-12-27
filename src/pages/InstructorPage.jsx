@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
-import axios from "axios"
+import api from "../services/api"
 import { useAuth } from "../context/AuthContext"
+import { useNavigate } from "react-router-dom"
+import Spinner from "../components/Spinner/Spinner"
 
 const InstructorPage = () => {
   const { user } = useAuth()
@@ -14,13 +16,15 @@ const InstructorPage = () => {
   ])
   const [loading, setLoading] = useState(false)
 
+  const navigate = useNavigate()
+
   useEffect(() => {
     const fetchCourses = async () => {
       if (!user) return
       try {
         // includeUnpublished so instructors see their drafts
         const instructorId = user.id || user._id
-        const res = await axios.get(`/api/courses?instructor=${instructorId}&includeUnpublished=true`)
+        const res = await api.get(`/courses?instructor=${instructorId}&includeUnpublished=true`)
         setCourses(res.data.data || [])
       } catch (err) {
         setCourses([])
@@ -62,12 +66,12 @@ const InstructorPage = () => {
       // Log the payload to help debugging and then send
       const payload = { title, course: selectedCourse, questions }
       console.debug("Creating quiz with payload:", payload)
-      const res = await axios.post("/api/quizzes", payload)
+      const res = await api.post("/quizzes", payload)
       const created = res.data.data
       alert("Quiz created")
       // If created, navigate to the quiz page for convenience
       if (created && created._id) {
-        window.location.href = `/quiz/${created._id}`
+        navigate(`/quiz/${created._id}`)
         return
       }
       setTitle("")

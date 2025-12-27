@@ -101,6 +101,8 @@ const RegisterPage = () => {
                   placeholder="Full Name"
                 />
               </div>
+
+
               
               <div>
                 <label htmlFor="email" className="sr-only">

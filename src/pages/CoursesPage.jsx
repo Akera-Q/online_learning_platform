@@ -3,7 +3,8 @@ import { Link } from "react-router-dom"
 import Navbar from "../components/Navbar/Navbar"
 import Footer from "../components/Footer/Footer"
 import CourseCard from "../components/Course/CourseCard"
-import axios from "axios"
+import api from "../services/api"
+import Spinner from "../components/Spinner/Spinner"
 
 const CoursesPage = () => {
   const [courses, setCourses] = useState([])
@@ -17,7 +18,7 @@ const CoursesPage = () => {
 
   const fetchCourses = async () => {
     try {
-      const response = await axios.get("/api/courses")
+      const response = await api.get("/courses")
       setCourses(response.data.data || [])
     } catch (error) {
       console.error("Error fetching courses:", error)
@@ -83,7 +84,7 @@ const CoursesPage = () => {
         {/* Course Grid */}
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+            <Spinner size={14} />
             <p className="mt-4 text-gray-600">Loading courses...</p>
           </div>
         ) : filteredCourses.length > 0 ? (
