@@ -1,0 +1,7 @@
+Certificate of Completion
+
+Student: test2
+Course: React.js Crash Course
+Quiz: Quiz: React.js Crash Course
+Date: 2025-12-27
+Certificate ID: CERT-1766872215544-vwz7f76h
